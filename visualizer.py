@@ -4,12 +4,13 @@ matplotlib.use("TkAgg")
 import numpy as np
 import matplotlib.pyplot as plt
 
-def visualize(wallimg, bitimg, anns, colors, showImg=True, showGraph = True):
+def visualize_graph(wallimg, anns, colors, showImg=True, showGraph = True):
     from PIL import Image, ImageDraw
     import networkx as nx
 
     layer = Image.new('RGBA', wallimg.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(layer)
+    drawhite = ImageDraw.Draw(wallimg)
     tol = calculate_tol(anns)
 
     node_list = np.array([], dtype=[('index',int), ('color',"U7")])
@@ -20,6 +21,8 @@ def visualize(wallimg, bitimg, anns, colors, showImg=True, showGraph = True):
         #Draws polygons on image
         for seg in ann['segmentation']:
             poly = np.array(seg,dtype=np.int).reshape((int(len(seg) / 2), 2))
+            drawhite.polygon([(x,y) for x, y in poly],
+                         fill='white', outline='white')
             draw.polygon([(x,y) for x, y in poly],
                          fill=(c[0], c[1], c[2], 127), outline=(c[0], c[1], c[2], 255))
         #Appends nodes and edges
@@ -28,7 +31,7 @@ def visualize(wallimg, bitimg, anns, colors, showImg=True, showGraph = True):
         node_list = np.append(node_list, np.array([(index, n_c)], dtype= node_list.dtype))
 
         for node in range(len(node_list)):
-            if is_close(ann, anns[node], tol, bitimg):
+            if is_close(ann, anns[node], tol, wallimg.load()):
                 edge_list = np.append(edge_list, np.array([(node, anns.index(ann))], dtype= edge_list.dtype))
     
     G = nx.Graph()
@@ -65,7 +68,7 @@ def is_close(ann1, ann2, tol, bitimg):
 
     if dist < tol:
         for point in line:
-            if bitimg[point[0], point[1]] == 0:
+            if bitimg[int(point[0]), int(point[1])] == 0:
                 return False
         return True
     else: 
@@ -86,7 +89,7 @@ def calculate_tol(anns):
 
 
 def xiaoline(x0, y0, x1, y1):
-
+    #Returns a zip with the points between the input
     x=[]
     y=[]
     dx = x1-x0
@@ -139,3 +142,8 @@ def xiaoline(x0, y0, x1, y1):
     coords=zip(x,y)
 
     return np.array(list(coords))
+
+def visualize_histogram(data):
+    bins = len(set(data))
+    n, bins, patches = plt.hist(data, bins, facecolor='blue', alpha=0.5)
+    plt.show()
