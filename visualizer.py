@@ -4,21 +4,22 @@ matplotlib.use("TkAgg")
 import numpy as np
 import matplotlib.pyplot as plt
 
-def visualize_graph(wallimg, anns, colors, showImg=True, showGraph = True):
+def visualize_graph(wallimg, anns, colors, showImg=True, showLabels = True):
     from PIL import Image, ImageDraw
     import networkx as nx
+    from networkx.drawing.nx_agraph import graphviz_layout
 
     layer = Image.new('RGBA', wallimg.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(layer)
     drawhite = ImageDraw.Draw(wallimg)
     tol = calculate_tol(anns)
 
-    node_list = np.array([], dtype=[('index',int), ('color',"U7")])
-    edge_list = np.array([], dtype=[('node1', int), ('node2', int)])
+    node_list = np.array([], dtype=[('index',int), ('color',"U7"), ('category',"U11")])
+    edge_list = np.array([], dtype=[('node1', int), ('node2', int), ('distance', int)])
     for ann in anns:
         category_name = ann['category_name']
         c = colors[ann['category_id']]
-        #Draws polygons on image
+        #Draws polygons on new image
         for seg in ann['segmentation']:
             poly = np.array(seg,dtype=np.int).reshape((int(len(seg) / 2), 2))
             drawhite.polygon([(x,y) for x, y in poly],
@@ -28,43 +29,43 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showGraph = True):
         #Appends nodes and edges
         n_c= '#%02x%02x%02x2' % (c[0],c[1],c[2])
         index = anns.index(ann)
-        node_list = np.append(node_list, np.array([(index, n_c)], dtype= node_list.dtype))
+        node_list = np.append(node_list, np.array([(index, n_c, category_name)], dtype= node_list.dtype))
 
         for node in range(len(node_list)):
-            if is_close(ann, anns[node], tol, wallimg.load()):
-                edge_list = np.append(edge_list, np.array([(node, anns.index(ann))], dtype= edge_list.dtype))
-    
+            dist = calculate_dist(ann, anns[node])[0]
+            if dist > 0 and is_close(ann, anns[node], tol, wallimg.load()):
+                edge_list = np.append(edge_list, np.array([(node, anns.index(ann), dist)], dtype= edge_list.dtype))
+    #Draw graph
     G = nx.Graph()
     G.add_nodes_from(node_list['index'])
-    G.add_edges_from(edge_list)
-    pos= nx.spring_layout(G)
-    #Draw Graph
+    G.add_weighted_edges_from(edge_list, 'distance')
+    pos= graphviz_layout(G, prog='circo')
     for node in range(len(node_list)):
         nx.draw_networkx_nodes(G,pos, nodelist=[node_list[node]['index']],
-         node_color= node_list[node]['color'], node_size=50)
-    nx.draw_networkx_edges(G,pos, alpha=0.8)
-
+         node_color= node_list[node]['color'],alpha = .8, node_size=150) 
+    nx.draw_networkx_edges(G, pos)
+    #Adds labels
+    if showLabels:
+        mapping = dict(zip(node_list['index'], node_list['category']))
+        nx.draw_networkx_labels(G, pos, labels = mapping, font_size = 8)
+        edge_labels = nx.get_edge_attributes(G,'distance')
+        nx.draw_networkx_edge_labels(G,pos, edge_labels=edge_labels, font_size = 6, alpha=0.8)
+  
     image = Image.alpha_composite(wallimg.convert('RGBA'), layer)
     if showImg:
-        image.show()
-    if showGraph:
-        plt.show()    
+        image.show() 
+    
+    plt.xticks([])
+    plt.yticks([]) 
+    plt.show()    
+
 
 def is_close(ann1, ann2, tol, bitimg):
-    #Find center of the bboxes
-    box1 = [ ann1['bbox'][0], ann1['bbox'][1], 
-        ann1['bbox'][0] + ann1['bbox'][2], ann1['bbox'][1] + ann1['bbox'][3] ]
-    box2 = [ ann2['bbox'][0], ann2['bbox'][1], 
-        ann2['bbox'][0] + ann2['bbox'][2], ann2['bbox'][1] + ann2['bbox'][3] ]
-
-    x1 ,y1 = ( np.average([box1[0], box1[2]]), np.average([box1[1], box1[3]]))
-    x2 ,y2 = ( np.average([box2[0], box2[2]]), np.average([box2[1], box2[3]]))
+    dist, x0, y0, x1, y1 = calculate_dist(ann1, ann2)
 
     line = np.array([])
-    if x1 != x2 and y1 != y2:
-        line = xiaoline(x1, y1, x2, y2)
-
-    dist = np.sqrt( (x2 - x1)**2 + (y2 - y1)**2)
+    if x0 != x1 and y0 != y1:
+        line = xiaoline(x0, y0, x1, y1)
 
     if dist < tol:
         for point in line:
@@ -73,6 +74,21 @@ def is_close(ann1, ann2, tol, bitimg):
         return True
     else: 
         return False
+
+
+def calculate_dist(ann0, ann1):
+    box0 = [ ann0['bbox'][0], ann0['bbox'][1], 
+        ann0['bbox'][0] + ann0['bbox'][2], ann0['bbox'][1] + ann0['bbox'][3] ]
+    box1 = [ ann1['bbox'][0], ann1['bbox'][1], 
+        ann1['bbox'][0] + ann1['bbox'][2], ann1['bbox'][1] + ann1['bbox'][3] ]
+
+    x0 ,y0 = ( np.average([box0[0], box0[2]]), np.average([box0[1], box0[3]]))
+    x1 ,y1 = ( np.average([box1[0], box1[2]]), np.average([box1[1], box1[3]]))
+
+    dist = np.sqrt( (x1 - x0)**2 + (y1 - y0)**2)
+
+    return dist, x0, y0, x1, y1
+
 
 def calculate_tol(anns):
     widths = np.array([])

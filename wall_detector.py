@@ -113,7 +113,6 @@ def calculate_avg_wall(img, grey_tol, draw_histogram = False):
 
 def get_structures(row_len, col_len):
     structures = {}
-
     #Horizontal
     structures['horizontal']= np.ones((int(row_len*2), 1))
     #Vertical
