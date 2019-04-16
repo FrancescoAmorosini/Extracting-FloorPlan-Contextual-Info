@@ -32,7 +32,7 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showLabels = True):
         node_list = np.append(node_list, np.array([(index, n_c, category_name)], dtype= node_list.dtype))
 
         for node in range(len(node_list)):
-            dist = calculate_dist(ann, anns[node])[0]
+            dist = calculate_center_dist(ann, anns[node])[0]
             if dist > 0 and is_close(ann, anns[node], tol, wallimg.load()):
                 edge_list = np.append(edge_list, np.array([(node, anns.index(ann), dist)], dtype= edge_list.dtype))
     #Draw graph
@@ -60,23 +60,44 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showLabels = True):
     plt.show()    
 
 
-def is_close(ann1, ann2, tol, bitimg):
-    dist, x0, y0, x1, y1 = calculate_dist(ann1, ann2)
-
-    line = np.array([])
-    if x0 != x1 and y0 != y1:
-        line = xiaoline(x0, y0, x1, y1)
-
-    if dist < tol:
-        for point in line:
-            if bitimg[int(point[0]), int(point[1])] == 0:
-                return False
-        return True
-    else: 
+def is_close(ann0, ann1, tol, bitimg):
+    dist, x0, y0, x1, y1 = calculate_center_dist(ann0, ann1)
+    if dist > tol :
         return False
+    else:
+        if x0 != x1 or y0 != y1:
+            line = xiaoline(x0, y0, x1, y1)
+            connected = True
+            for point in line:
+                if bitimg[int(point[0]), int(point[1])] == 0:
+                    connected = False
+                    break
+            if connected:
+                return True 
+    for seg0 in ann0['segmentation']:
+        for coord0 in range(0, len(seg0), 2):
+            x0 = seg0[coord0]
+            y0 = seg0[coord0 + 1]
+            for seg1 in ann1['segmentation']:
+                for coord1 in range(0, len(seg1), 2):
+                    x1 = seg1[coord1]
+                    y1 = seg1[coord1 + 1]
+                    #Consider line between segmentation points
+                    line = np.array([])
+                    if x0 != x1 or y0 != y1:
+                        line = xiaoline(x0, y0, x1, y1)
+                    #Check black points in line
+                    connected = True
+                    for point in line:
+                        if bitimg[int(point[0]), int(point[1])] == 0:
+                            connected = False
+                            break
+                    if connected:
+                        return True
+    return False
 
 
-def calculate_dist(ann0, ann1):
+def calculate_center_dist(ann0, ann1):
     box0 = [ ann0['bbox'][0], ann0['bbox'][1], 
         ann0['bbox'][0] + ann0['bbox'][2], ann0['bbox'][1] + ann0['bbox'][3] ]
     box1 = [ ann1['bbox'][0], ann1['bbox'][1], 
@@ -101,7 +122,7 @@ def calculate_tol(anns):
     mean_height = np.mean(heights)
 
     mean_diag = np.sqrt( mean_width**2 + mean_height**2)
-    return 2.5*mean_diag
+    return 2.8*mean_diag
 
 
 def xiaoline(x0, y0, x1, y1):
