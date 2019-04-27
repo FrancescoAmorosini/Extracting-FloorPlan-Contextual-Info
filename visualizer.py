@@ -180,7 +180,11 @@ def xiaoline(x0, y0, x1, y1):
 
     return np.array(list(coords))
 
-def visualize_histogram(data):
+def visualize_histogram(data, upper_limit):
     bins = len(set(data))
     n, bins, patches = plt.hist(data, bins, facecolor='blue', alpha=0.5)
+    axes = plt.gca()
+    axes.set_xlim([0,upper_limit])
+    axes.set_ylim([0, 1000])
+    
     plt.show()

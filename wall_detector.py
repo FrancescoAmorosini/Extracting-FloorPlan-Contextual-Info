@@ -1,21 +1,23 @@
 from PIL import Image
 import numpy as np
 
-def detect_walls(img_path, showHistogram = False):
+def detect_walls(img_path, show_histogram = False):
 
-    grey_tol = 200
+    grey_tol = 220
 
-    img = Image.open(img_path).convert('RGBA')
+    img = Image.open(img_path).convert('L')
     pix = img.load()
     
     img.show()
-    row_len, col_len, wallimg = calculate_avg_wall(img,grey_tol, showHistogram)
+    img_diag = int(np.sqrt(img.size[0]**2+img.size[1]**2))
+    row_len, col_len, wallimg = calculate_avg_wall(img, grey_tol, show_histogram)
     newpix = np.rot90(np.flip(np.asarray(wallimg, dtype=np.int), axis = 1))
-    
-    return morphologic_elaboration(newpix, row_len, col_len)
+
+    return morphologic_elaboration(newpix, row_len, col_len, img_diag)
+
 
     
-def morphologic_elaboration(bitimg, row_len, col_len):
+def morphologic_elaboration(bitimg, row_len, col_len, img_diag):
     from scipy.ndimage import binary_dilation, binary_erosion
 
     negative = 1 - bitimg
@@ -25,104 +27,120 @@ def morphologic_elaboration(bitimg, row_len, col_len):
     clean_structure[:, 1] = 1
     clean_structure[1, :] = 1
 
+    itr = int(img_diag/750)
+    if itr == 0 : itr +=1
+    print('Diagonal: ', img_diag, ' Erosions: ', itr)
     structures = get_structures(row_len, col_len)
     #Union of multiple indepentent erosions
     for strc in structures:
         temp = binary_erosion(negative, structures[strc]).astype(np.int)
-        temp = binary_erosion(temp, clean_structure, int(min([row_len, col_len])/13)+1).astype(np.int)
+        temp = binary_erosion(temp, clean_structure, itr).astype(np.int)
+        temp = binary_dilation(temp, clean_structure, itr).astype(np.int)
+        #temp = binary_dilation(temp).astype(np.int)
         modified = np.logical_or(modified, temp).astype(np.int)
     
     modified = 1 - modified
 
+    #Create new img from modified bitimg
     newimg = Image.new('1', bitimg.shape, 1)
     newpix = newimg.load()
-    #Create new img from modified bitimg
-    for y in range(bitimg.shape[1]):
-        for x in range(bitimg.shape[0]):
-            if modified[x,y] == 0:
-                newpix[x,y] = 0
-
+    indexes = np.where(modified == 0)
+    indexes = list(zip(indexes[0], indexes[1]))
+    for x,y in indexes:
+        newpix[int(x),int(y)] = 0
+    
     return newimg, modified
     
 
-def calculate_avg_wall(img, grey_tol, showHistogram = False):
+def calculate_avg_wall(img, grey_tol, show_histogram):
     from collections import Counter
-
-    upper_limit = 30
+    #Calculate walls upper limit on img size
+    img_diag = int(np.sqrt(img.size[0]**2+img.size[1]**2))
+    upper_limit = int(img_diag/16)
     pix = img.load()
     newimg = Image.new('1', img.size, 1)
     newpix = newimg.load()
-    #Horizontal lines
+    #Count horizontal lines
     row_sum = np.array([])
     sum = 0
     for y in range(img.size[1]):
         for x in range(img.size[0]):
-            if pix[x,y] < (grey_tol, grey_tol, grey_tol, np.inf):
+            if pix[x,y] < grey_tol:
                 sum +=1
                 newpix[x,y] = 0
             else:
-                if sum > 0 and sum <= upper_limit:
+                if sum > 0 and sum < upper_limit:
                     row_sum = np.append(row_sum, sum)
                 sum = 0
-
     occurrene_count = Counter(row_sum)
     count_h = occurrene_count.most_common()
-    mean_freq = np.mean( [x[1] for x in count_h])
-    row_avg = find_local_max(count_h, mean_freq)
+    row_avg = find_local_max(count_h)
     print('Average wall width = ', row_avg)
-    #Vertical lines
+    #Count vertical lines
     col_sum = np.array([])
     sum = 0
     for x in range(img.size[0]):
         for y in range(img.size[1]):
-            if pix[x,y] < (grey_tol, grey_tol, grey_tol, np.inf):
+            if pix[x,y] < grey_tol:
                 sum +=1
                 newpix[x,y] = 0
             else:
-                if sum > 0 and sum <= upper_limit:
+                if sum > 0 and sum < upper_limit:
                     col_sum = np.append(col_sum, sum)
                 sum = 0
-
     occurrene_count = Counter(col_sum)
     count_v = occurrene_count.most_common()
-    mean_freq = np.mean( [x[1] for x in count_v])
-    col_avg = find_local_max(count_v, mean_freq)
-    print(' Average wall height= ', col_avg) 
+    col_avg = find_local_max(count_v)
+    print('Average wall height= ', col_avg) 
 
-    if showHistogram:
+    if show_histogram:
         from visualizer import visualize_histogram
-        visualize_histogram(row_sum)
-        visualize_histogram(col_sum)
-        
+        visualize_histogram(row_sum, upper_limit)
+        visualize_histogram(col_sum, upper_limit)
+    
     return row_avg, col_avg, newimg
 
 
-def find_local_max(count, mean_freq):
+def find_local_max(count):
     sorted_by_value = sorted(count, key= lambda tup:tup[0])
+    #Inserts zero values
+    for i in range(int(sorted_by_value[-1][0])):
+        if i+1 != sorted_by_value[i][0]:
+            sorted_by_value.insert(i, (i+1,0))
+    sorted_by_value.insert(len(sorted_by_value), (len(sorted_by_value) + 1,0))
     maxes = []
-    previous = None
-    prevprev = None
+    previous = (0,0)
+    prevprev = (0,0)
+    #Find all maxes
     for x in sorted_by_value:
-        if previous is not None  and prevprev is not None:
-            if previous[1] > x[1] and previous[1] > prevprev[1]:
-                if previous[0] > 4:
-                    maxes.append(previous)
+        if previous[1] > x[1] and previous[1] > prevprev[1] and previous[0] < x[0]:
+            maxes.append(previous)
         prevprev = previous
         previous = x
-
+    #Find 3 global maxes and return the best one
+    rest = [x for x in maxes if x[0] <= 4]
+    maxes = [x for x in maxes if x[0] > 4]
+    if len(maxes) == 0 : return rest[-1][0]
+    elif len(maxes) < 3 :
+        return max([rest[-1],maxes[0]], key=lambda tup:tup[1])[0]
     while len(maxes) > 3:
-        maxes.remove( min(maxes, key=lambda tup:tup[1]))
-    return  maxes[1][0]
+        min_value = min(maxes, key=lambda tup:tup[1])
+        min_list = [i for i,x in enumerate(maxes) if x[1] == min_value[1]]
+        maxes.pop(min_list[-1])
+    if maxes[0][0] > maxes[0][1]:
+        return maxes[0][0]
+
+    return max([maxes[1], maxes[2]], key=lambda tup:tup[1])[0]
 
 
 def get_structures(row_len, col_len):
     structures = {}
     #Horizontal
-    structures['horizontal']= np.ones((int(row_len*2), 1))
+    structures['horizontal']= np.ones((int(row_len), 1))
     #Vertical
-    structures['vertical']= np.ones((1, int(row_len*2)))
+    structures['vertical']= np.ones((1, int(col_len)))
     #45 degrees
-    diag = int(np.sqrt(row_len**2 + col_len**2)/4)
+    diag = int(np.sqrt(row_len**2 + col_len**2)/2)
     square = np.zeros((diag, diag))
     np.fill_diagonal(square, 1)
     structures['45deg'] = square
