@@ -7,8 +7,8 @@ def detect_walls(img_path, show_histogram = False):
 
     img = Image.open(img_path).convert('L')
     pix = img.load()
-    
-    img.show()
+
+    #img.show()
     img_diag = int(np.sqrt(img.size[0]**2+img.size[1]**2))
     row_len, col_len, wallimg = calculate_avg_wall(img, grey_tol, show_histogram)
     newpix = np.rot90(np.flip(np.asarray(wallimg, dtype=np.int), axis = 1))
@@ -27,7 +27,9 @@ def morphologic_elaboration(bitimg, row_len, col_len, img_diag):
     clean_structure[:, 1] = 1
     clean_structure[1, :] = 1
 
-    itr = int(img_diag/750)
+    itr = int(img_diag/600)
+    bonus = int(min([row_len, col_len])/17)
+    itr += bonus
     if itr == 0 : itr +=1
     print('Diagonal: ', img_diag, ' Erosions: ', itr)
     structures = get_structures(row_len, col_len)
@@ -48,7 +50,6 @@ def morphologic_elaboration(bitimg, row_len, col_len, img_diag):
     indexes = list(zip(indexes[0], indexes[1]))
     for x,y in indexes:
         newpix[int(x),int(y)] = 0
-    
     return newimg, modified
     
 

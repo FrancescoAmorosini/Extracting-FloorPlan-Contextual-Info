@@ -16,6 +16,7 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showLabels = True):
 
     node_list = np.array([], dtype=[('index',int), ('color',"U7"), ('category',"U11")])
     edge_list = np.array([], dtype=[('node1', int), ('node2', int), ('distance', int)])
+    occurrence_data = np.array([], dtype=[('node1', "U11"), ('node2', "U11"), ('distance', int)])
     for ann in anns:
         category_name = ann['category_name']
         c = colors[ann['category_id']]
@@ -32,9 +33,10 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showLabels = True):
         node_list = np.append(node_list, np.array([(index, n_c, category_name)], dtype= node_list.dtype))
 
         for node in range(len(node_list)):
-            dist = calculate_center_dist(ann, anns[node])[0]
-            if dist > 0 and is_close(ann, anns[node], tol, wallimg.load()):
+            dist = calculate_actual_dist(ann, anns[node])
+            if dist > 0 and is_close(ann, anns[node], dist, tol, wallimg.load()):
                 edge_list = np.append(edge_list, np.array([(node, anns.index(ann), dist)], dtype= edge_list.dtype))
+                occurrence_data = np.append(occurrence_data, np.array([(node_list[node]['category'], ann['category_name'], dist)], dtype= occurrence_data.dtype))
     #Draw graph
     G = nx.Graph()
     G.add_nodes_from(node_list['index'])
@@ -57,23 +59,31 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showLabels = True):
     
     plt.xticks([])
     plt.yticks([]) 
-    plt.show()    
+    #plt.show()    
+    return occurrence_data
 
-
-def is_close(ann0, ann1, tol, bitimg):
-    dist, x0, y0, x1, y1 = calculate_center_dist(ann0, ann1)
+def is_close(ann0, ann1, dist, tol, bitimg):
     if dist > tol :
         return False
-    else:
-        if x0 != x1 or y0 != y1:
-            line = xiaoline(x0, y0, x1, y1)
-            connected = True
-            for point in line:
-                if bitimg[int(point[0]), int(point[1])] == 0:
-                    connected = False
-                    break
-            if connected:
-                return True 
+    
+    #Find centers
+    box0 = [ ann0['bbox'][0], ann0['bbox'][1], 
+        ann0['bbox'][0] + ann0['bbox'][2], ann0['bbox'][1] + ann0['bbox'][3] ]
+    box1 = [ ann1['bbox'][0], ann1['bbox'][1], 
+        ann1['bbox'][0] + ann1['bbox'][2], ann1['bbox'][1] + ann1['bbox'][3] ]
+
+    x0 ,y0 = ( np.average([box0[0], box0[2]]), np.average([box0[1], box0[3]]))
+    x1 ,y1 = ( np.average([box1[0], box1[2]]), np.average([box1[1], box1[3]]))
+    #Check black points in center axis
+    if x0 != x1 or y0 != y1:
+        line = xiaoline(x0, y0, x1, y1)
+        connected = True
+        for point in line:
+            if bitimg[int(point[0]), int(point[1])] == 0:
+                connected = False
+                break
+        if connected:
+            return True 
     for seg0 in ann0['segmentation']:
         for coord0 in range(0, len(seg0), 2):
             x0 = seg0[coord0]
@@ -110,6 +120,85 @@ def calculate_center_dist(ann0, ann1):
 
     return dist, x0, y0, x1, y1
 
+def calculate_actual_dist(ann0, ann1):
+    box0 = [ ann0['bbox'][0], ann0['bbox'][1], 
+        ann0['bbox'][0] + ann0['bbox'][2], ann0['bbox'][1] + ann0['bbox'][3] ]
+    box1 = [ ann1['bbox'][0], ann1['bbox'][1], 
+        ann1['bbox'][0] + ann1['bbox'][2], ann1['bbox'][1] + ann1['bbox'][3] ]
+
+    x0 ,y0 = ( np.average([box0[0], box0[2]]), np.average([box0[1], box0[3]]))
+    x1 ,y1 = ( np.average([box1[0], box1[2]]), np.average([box1[1], box1[3]]))
+
+    if ann0 == ann1:
+        return 0
+    
+    #Initialize dist on center axis
+    poly0 = np.array(ann0['segmentation'][0], dtype=np.int).reshape((int(len(ann0['segmentation'][0]) / 2), 2))
+    poly1 = np.array(ann1['segmentation'][0], dtype=np.int).reshape((int(len(ann1['segmentation'][0]) / 2), 2))
+    axis = xiaoline(x0, y0, x1, y1)
+
+    mindist = len(axis)
+    min0 = [x0,y0]
+    min1 = [x1,y1]
+
+    prev = poly0[-1]
+    for point0 in poly0:
+        line = xiaoline(point0[0], point0[1], prev[0], prev[1])
+        crossing = [x for x in line if x in axis]
+        if crossing:
+            for x in crossing:
+                dist = np.sqrt( (min1[0] - x[0])**2 + (min1[1] - x[1])**2)
+                if dist < mindist:
+                    mindist = dist
+                    min0 = x
+        prev = point0
+    prev = poly1[-1]
+    for point1 in poly1:
+        line = xiaoline(point1[0], point1[1], prev[0], prev[1])
+        crossing = [x for x in line if x in axis]
+        if crossing:
+            for x in crossing:
+                dist = np.sqrt( (min0[0] - x[0])**2 + (min0[1] - x[1])**2)
+                if dist < mindist:
+                    mindist = dist
+                    min1 = x
+        prev = point1
+    #Find closest vertex of poly0 to poly1 contour
+    for point0 in poly0:
+        line = xiaoline(x1, y1, point0[0], point0[1])
+        prev = poly1[-1]
+        for point1 in poly1:
+            #Check distance between vertices
+            dist = np.sqrt( (point0[0] - point1[0])**2 + (point0[1] - point1[1])**2)
+            if dist < mindist:
+                mindist = dist
+                min0 = point0
+                min1 = point1
+            #Find closest contour point in poly1
+            line2 = xiaoline(prev[0], prev[1], point1[0], point1[1])
+            crossing = [x for x in line2 if x in line]
+            if crossing:
+                for x in crossing:
+                    dist = np.sqrt( (point0[0] - x[0])**2 + (point0[1] - x[1])**2)
+                    if dist < mindist:
+                        mindist = dist
+                        min0 = point0
+                        min1 = x   
+            prev = point1
+    #Find point of poly0 contour to closest point of poly0 contour
+    line = xiaoline(x0, y0, min1[0], min1[1])
+    prev = poly0[-1]
+    for point0 in poly0:
+        line2 = xiaoline(point0[0], point0[1], prev[0], prev[1])
+        crossing = [x for x in line2 if x in line]
+        if crossing:
+            for x in crossing:
+                dist = np.sqrt( (min1[0] - x[0])**2 + (min1[1] - x[1])**2)
+                if dist < mindist:
+                    mindist = dist
+                    min0 = x
+        prev = point0
+    return mindist
 
 def calculate_tol(anns):
     widths = np.array([])
@@ -122,11 +211,13 @@ def calculate_tol(anns):
     mean_height = np.mean(heights)
 
     mean_diag = np.sqrt( mean_width**2 + mean_height**2)
-    return 2.8*mean_diag
+    return 1.5*mean_diag
 
 
 def xiaoline(x0, y0, x1, y1):
     #Returns a zip with the points between the input
+    if x0 == x1 and y0 == y1:
+        return []
     x=[]
     y=[]
     dx = x1-x0
@@ -178,13 +269,14 @@ def xiaoline(x0, y0, x1, y1):
 
     coords=zip(x,y)
 
-    return np.array(list(coords))
+    return list(coords)
 
 def visualize_histogram(data, upper_limit):
     bins = len(set(data))
-    n, bins, patches = plt.hist(data, bins, facecolor='blue', alpha=0.5)
+    plt.hist(data, bins, facecolor='blue', alpha=0.5)
     axes = plt.gca()
     axes.set_xlim([0,upper_limit])
     axes.set_ylim([0, 1000])
-    
+    plt.xlabel('Line Length')
+    plt.ylabel('# of Occurrencies')
     plt.show()

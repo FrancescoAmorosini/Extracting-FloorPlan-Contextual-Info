@@ -1,30 +1,25 @@
+import matplotlib
+matplotlib.use("TkAgg")
 import numpy as np
+import matplotlib.pyplot as plt
+import pickle
+from random import randint
+from collections import Counter
 
-def get_image_params(json_path, image_path, key=None, show=True, save_file=False, save_path='local'):
-    from  Flo2PlanManager.manager.visual import ManageCOCO
-    import os
-    import shutil
+def show_obj_hist(categories, obj = None):
+    with open("output.pickle", "rb") as file:  
+        data = pickle.load(file)
+    
+    if obj is None:
+        obj = categories[randint(0,len(categories))]
+    curves = {}
+    for x in categories:
+        counter = Counter(data[(obj, x)])
+        count = counter.most_common()
+        curves.update({x : data[(obj, x)]})
+        if len(data[(obj,x)]) > 3:
+            plt.hist(data[(obj, x)], bins=25, label = x, alpha = 0.8, histtype='step')
 
-    manager = ManageCOCO(json_path, image_path)
-    ids = manager.getImageIds()
-    colors = manager.getColorCategories()
-    if key is None:
-        idx = [np.random.randint(0, len(ids))]
-    elif key == 'ALL':
-        idx = ids
-        show = False
-        save_file = True
-    else:
-        idx = [manager.searchByKey(key)]
-
-
-    if save_file:
-        if os.path.isdir(save_path):
-            shutil.rmtree(save_path)
-        os.makedirs(save_path)
-
-    for id in idx:
-        p, ann = manager.getImageAnnotations(id)
-        print('Image path:', p)
-
-        return p, ann, colors
+    plt.title(obj)
+    plt.legend()
+    plt.show()
