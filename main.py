@@ -19,14 +19,14 @@ def __main__():
     #Produce data on first run
     if not os.path.isfile('./output.pickle'):
         ids = manager.getImageIds()
-        inferences_data = np.array([], dtype=[('node1', "U11"), ('node2', "U11"), ('distance', int)])
+        colors = manager.getColorCategories()
+        inferences_data = np.array([], dtype=[('node1', "U12"), ('node2', "U12"), ('distance', float)])
         #Detect object contexts
         for indx in ids:
             print(indx)
-            colors = manager.getColorCategories()
             path, anns = manager.getImageAnnotations(indx)
             wallimg, bitimg = detect_walls(path, show_histogram= False)
-            inferences_data = np.append(inferences_data, visualize_graph(wallimg, anns, colors, showImg=False, showLabels=True))
+            inferences_data = np.append(inferences_data, visualize_graph(wallimg, anns, colors, showImg=False, showGraph=False))
         #Build histograms of object occurrences
         hists = {}
         combinations = [(x,y) for x in categories for y in categories]

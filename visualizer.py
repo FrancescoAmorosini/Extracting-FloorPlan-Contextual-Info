@@ -1,10 +1,10 @@
-
 import matplotlib
 matplotlib.use("TkAgg")
 import numpy as np
 import matplotlib.pyplot as plt
+import util
 
-def visualize_graph(wallimg, anns, colors, showImg=True, showLabels = True):
+def visualize_graph(wallimg, anns, colors, showImg=True, showGraph = False):
     from PIL import Image, ImageDraw
     import networkx as nx
     from networkx.drawing.nx_agraph import graphviz_layout
@@ -14,9 +14,9 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showLabels = True):
     drawhite = ImageDraw.Draw(wallimg)
     tol = calculate_tol(anns)
 
-    node_list = np.array([], dtype=[('index',int), ('color',"U7"), ('category',"U11")])
-    edge_list = np.array([], dtype=[('node1', int), ('node2', int), ('distance', int)])
-    occurrence_data = np.array([], dtype=[('node1', "U11"), ('node2', "U11"), ('distance', int)])
+    node_list = np.array([], dtype=[('index',int), ('color',"U7"), ('category',"U12")])
+    edge_list = np.array([], dtype=[('node1', int), ('node2', int), ('distance', float)])
+    occurrence_data = np.array([], dtype=[('node1', "U12"), ('node2', "U12"), ('distance', float)])
     for ann in anns:
         category_name = ann['category_name']
         c = colors[ann['category_id']]
@@ -33,33 +33,39 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showLabels = True):
         node_list = np.append(node_list, np.array([(index, n_c, category_name)], dtype= node_list.dtype))
 
         for node in range(len(node_list)):
-            dist = calculate_actual_dist(ann, anns[node])
+            dist = calculate_center_dist(ann, anns[node])
             if dist > 0 and is_close(ann, anns[node], dist, tol, wallimg.load()):
-                edge_list = np.append(edge_list, np.array([(node, anns.index(ann), dist)], dtype= edge_list.dtype))
-                occurrence_data = np.append(occurrence_data, np.array([(node_list[node]['category'], ann['category_name'], dist)], dtype= occurrence_data.dtype))
-    #Draw graph
-    G = nx.Graph()
-    G.add_nodes_from(node_list['index'])
-    G.add_weighted_edges_from(edge_list, 'distance')
-    pos= graphviz_layout(G, prog='circo')
-    for node in range(len(node_list)):
-        nx.draw_networkx_nodes(G,pos, nodelist=[node_list[node]['index']],
-         node_color= node_list[node]['color'],alpha = .8, node_size=150) 
-    nx.draw_networkx_edges(G, pos)
-    #Adds labels
-    if showLabels:
+                dist =calculate_actual_dist(ann, anns[node])
+                normalized = dist / max([ann['bbox'][2], ann['bbox'][3]])
+                edge_list = np.append(edge_list, np.array([(node, anns.index(ann), round(normalized, 3))], dtype= edge_list.dtype))
+    #Check subcategories and save results
+    node_list = util.check_subcategories(node_list, edge_list)
+    for edge in edge_list:
+        occurrence_data = np.append(occurrence_data, np.array([(node_list[edge['node1']]['category'], node_list[edge['node2']]['category'], edge['distance'])], dtype= occurrence_data.dtype))
+    #Draw graph and img
+    if showImg:
+        image = Image.alpha_composite(wallimg.convert('RGBA'), layer)
+        image.show() 
+
+    if showGraph:
+        G = nx.Graph()
+        G.add_nodes_from(node_list['index'])
+        G.add_weighted_edges_from(edge_list, 'distance')
+        pos= graphviz_layout(G, prog='circo')
+        for node in range(len(node_list)):
+            nx.draw_networkx_nodes(G,pos, nodelist=[node_list[node]['index']],
+            node_color= node_list[node]['color'],alpha = .8, node_size=150) 
+        nx.draw_networkx_edges(G, pos)
+        #Adds labels
         mapping = dict(zip(node_list['index'], node_list['category']))
         nx.draw_networkx_labels(G, pos, labels = mapping, font_size = 8)
         edge_labels = nx.get_edge_attributes(G,'distance')
         nx.draw_networkx_edge_labels(G,pos, edge_labels=edge_labels, font_size = 6, alpha=0.8)
-  
-    image = Image.alpha_composite(wallimg.convert('RGBA'), layer)
-    if showImg:
-        image.show() 
     
-    plt.xticks([])
-    plt.yticks([]) 
-    #plt.show()    
+        plt.xticks([])
+        plt.yticks([]) 
+        plt.show()
+    
     return occurrence_data
 
 def is_close(ann0, ann1, dist, tol, bitimg):
@@ -118,7 +124,7 @@ def calculate_center_dist(ann0, ann1):
 
     dist = np.sqrt( (x1 - x0)**2 + (y1 - y0)**2)
 
-    return dist, x0, y0, x1, y1
+    return dist
 
 def calculate_actual_dist(ann0, ann1):
     box0 = [ ann0['bbox'][0], ann0['bbox'][1], 
@@ -211,7 +217,7 @@ def calculate_tol(anns):
     mean_height = np.mean(heights)
 
     mean_diag = np.sqrt( mean_width**2 + mean_height**2)
-    return 1.5*mean_diag
+    return 2.5*mean_diag
 
 
 def xiaoline(x0, y0, x1, y1):
