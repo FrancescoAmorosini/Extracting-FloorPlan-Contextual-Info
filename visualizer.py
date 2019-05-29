@@ -39,7 +39,7 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showGraph = False):
                 normalized = dist / max([ann['bbox'][2], ann['bbox'][3]])
                 edge_list = np.append(edge_list, np.array([(node, anns.index(ann), round(normalized, 3))], dtype= edge_list.dtype))
     #Check subcategories and save results
-    node_list = util.check_subcategories(node_list, edge_list)
+    node_list = util.check_subcategories(node_list, edge_list, banned = [])
     for edge in edge_list:
         occurrence_data = np.append(occurrence_data, np.array([(node_list[edge['node1']]['category'], node_list[edge['node2']]['category'], edge['distance'])], dtype= occurrence_data.dtype))
     #Draw graph and img
@@ -217,7 +217,7 @@ def calculate_tol(anns):
     mean_height = np.mean(heights)
 
     mean_diag = np.sqrt( mean_width**2 + mean_height**2)
-    return 2.5*mean_diag
+    return 2.6*mean_diag
 
 
 def xiaoline(x0, y0, x1, y1):

@@ -7,6 +7,7 @@ from random import randint
 from scipy.interpolate import make_interp_spline, BSpline
 
 def show_obj_hist(categories, obj = None):
+    plt.close('all')
     with open("output.pickle", "rb") as file:  
         data = pickle.load(file)
     
@@ -35,7 +36,7 @@ def show_obj_hist(categories, obj = None):
     plt.ylabel('# of Occurrencies')
     plt.show()
 
-def check_subcategories(node_list, edge_list, banned = []):
+def check_subcategories(node_list, edge_list, banned):
     added = np.array([], dtype=node_list.dtype)
     for node in node_list:
         if (node['category'] in ('table, sink')):
