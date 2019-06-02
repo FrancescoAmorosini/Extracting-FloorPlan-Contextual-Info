@@ -3,9 +3,9 @@ matplotlib.use("TkAgg")
 import numpy as np
 import matplotlib.pyplot as plt
 import util
+from PIL import Image, ImageDraw
 
-def visualize_graph(wallimg, anns, colors, showImg=True, showGraph = False):
-    from PIL import Image, ImageDraw
+def visualize_graph(wallimg, anns, colors, categories, path, showImg=True, showGraph = False):
     import networkx as nx
     from networkx.drawing.nx_agraph import graphviz_layout
 
@@ -40,6 +40,9 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showGraph = False):
                 edge_list = np.append(edge_list, np.array([(node, anns.index(ann), round(normalized, 3))], dtype= edge_list.dtype))
     #Check subcategories and save results
     node_list = util.check_subcategories(node_list, edge_list, banned = [])
+    crop_sinks(anns, node_list, path)
+    crop_tables(anns, node_list, path)
+    
     for edge in edge_list:
         occurrence_data = np.append(occurrence_data, np.array([(node_list[edge['node1']]['category'], node_list[edge['node2']]['category'], edge['distance'])], dtype= occurrence_data.dtype))
     #Draw graph and img
@@ -66,7 +69,8 @@ def visualize_graph(wallimg, anns, colors, showImg=True, showGraph = False):
         plt.yticks([]) 
         plt.show()
     
-    return occurrence_data
+    training_set = util.create_trainingset(node_list, edge_list, categories)
+    return occurrence_data, training_set
 
 def is_close(ann0, ann1, dist, tol, bitimg):
     if dist > tol :
@@ -217,7 +221,7 @@ def calculate_tol(anns):
     mean_height = np.mean(heights)
 
     mean_diag = np.sqrt( mean_width**2 + mean_height**2)
-    return 2.6*mean_diag
+    return 2.8*mean_diag
 
 
 def xiaoline(x0, y0, x1, y1):
@@ -277,12 +281,83 @@ def xiaoline(x0, y0, x1, y1):
 
     return list(coords)
 
-def visualize_histogram(data, upper_limit):
-    bins = len(set(data))
-    plt.hist(data, bins, facecolor='blue', alpha=0.5)
-    axes = plt.gca()
-    axes.set_xlim([0,upper_limit])
-    axes.set_ylim([0, 1000])
-    plt.xlabel('Line Length')
-    plt.ylabel('# of Occurrencies')
-    plt.show()
+save = False
+def crop_sinks(anns, node_list, img_path):
+    import os
+    #Create sink folders
+    wallimg = Image.open(img_path).convert('L')
+    global save
+    if not os.path.isdir('./sinks'):
+        os.mkdir('./sinks')
+        os.mkdir('./sinks/bathrm_sink')
+        os.mkdir('./sinks/kitch_sink')
+        save = True
+    #If sink folders are empty, fill them
+    if save:
+        for node in node_list:
+            if node['category'] in ('sink', 'bathrm_sink', 'kitch_sink'):
+                bbox = anns[node['index']]['bbox']
+                area = (int(bbox[0] - 1.5*bbox[2]), int(bbox[1] - 1.5*bbox[3]), int(bbox[0] + 3*bbox[2]), int(bbox[1] + 3*bbox[3]))
+                path = './sinks'
+                img_name = img_path[20::]
+                img_name = img_name[0:-4]
+                if node['category'] in ('bathrm_sink', 'kitch_sink'):
+                    path = path + '/' + node['category']
+                
+                newimg= wallimg.crop(area)
+                newimg.save(path + img_name + 'ID' + str(node['index']) + '.png')
+        return None
+    #If skink folder is filled, update obj classes
+    else:
+        img_name = img_path[20::]
+        img_name = img_name[0:-4]
+        for node in node_list:
+           if node['category'] in ('sink','bathrm_sink', 'kitch_sink'):
+                if os.path.isfile('./sinks/' + node['category'] + '/' + img_name + 'ID' + str(node['index']) + '.png'):
+                   continue
+                else:
+                    if os.path.isfile('./sinks/bathrm_sink/' + img_name + 'ID' + str(node['index']) + '.png'):
+                        node['category'] = 'bathrm_sink'
+                    elif os.path.isfile('./sinks/kitch_sink/' + img_name + 'ID' + str(node['index']) + '.png'):
+                        node['category'] = 'kitch_sink'
+    return node_list
+
+def crop_tables(anns, node_list, img_path):
+    import os
+    #Create sink folders
+    wallimg = Image.open(img_path).convert('L')
+    global save
+    if not os.path.isdir('./tables'):
+        os.mkdir('./tables')
+        os.mkdir('./tables/small_table')
+        os.mkdir('./tables/dining_table')
+        save = True
+    #If table folders are empty, fill them
+    if save:
+        for node in node_list:
+            if node['category'] in ('table','small_table', 'dining_table'):
+                bbox = anns[node['index']]['bbox']
+                area = (int(bbox[0] - 1.5*bbox[2]), int(bbox[1] - 1.5*bbox[3]), int(bbox[0] + 3*bbox[2]), int(bbox[1] + 3*bbox[3]))
+                path = './tables'
+                img_name = img_path[20::]
+                img_name = img_name[0:-4]
+                if node['category'] in ('small_table', 'dining_table'):
+                    path = path + '/' + node['category']
+                
+                newimg= wallimg.crop(area)
+                newimg.save(path + img_name + 'ID' + str(node['index']) + '.png')
+        return None
+    #If table folder is filled, update obj classes
+    else:
+        img_name = img_path[20::]
+        img_name = img_name[0:-4]
+        for node in node_list:
+           if node['category'] in ('table','small_table', 'dining_table'):
+                if os.path.isfile('./tables/' + node['category'] + '/' + img_name + 'ID' + str(node['index']) + '.png'):
+                   continue
+                else:
+                    if os.path.isfile('./tables/small_table/' + img_name + 'ID' + str(node['index']) + '.png'):
+                        node['category'] = 'small_table'
+                    elif os.path.isfile('./tables/dining_table/' + img_name + 'ID' + str(node['index']) + '.png'):
+                        node['category'] = 'dining_table'
+    return node_list

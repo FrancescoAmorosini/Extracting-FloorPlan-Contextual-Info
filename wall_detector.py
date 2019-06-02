@@ -95,7 +95,7 @@ def calculate_avg_wall(img, grey_tol, show_histogram):
     print('Average wall height= ', col_avg) 
 
     if show_histogram:
-        from visualizer import visualize_histogram
+        from util import visualize_histogram
         visualize_histogram(row_sum, upper_limit)
         visualize_histogram(col_sum, upper_limit)
     

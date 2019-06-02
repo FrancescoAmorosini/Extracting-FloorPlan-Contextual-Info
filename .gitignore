@@ -1,5 +1,9 @@
 trainingset/
 Flo2PlanManager/
 __pycache__/
+sinks/
+tables/
 .vscode/
-output.pickle
+*.pickle
+*.png
+*.dot

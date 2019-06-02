@@ -1,5 +1,6 @@
 from visualizer import visualize_graph
 from wall_detector import detect_walls
+import tree_manager
 from  Flo2PlanManager.manager.visual import ManageCOCO
 import numpy as np
 import pickle
@@ -17,16 +18,19 @@ def __main__():
     for cat in categories:
             categories[cat - 1] = manager.getCategoryName(cat)
     #Produce data on first run
-    if not os.path.isfile('./output.pickle'):
+    if not os.path.isfile('./training_data.pickle') or not os.path.isfile('./hist.pickle'):
         ids = manager.getImageIds()
         colors = manager.getColorCategories()
+        training_data = {}
         inferences_data = np.array([], dtype=[('node1', "U12"), ('node2', "U12"), ('distance', float)])
         #Detect object contexts
         for indx in ids:
             print(indx)
             path, anns = manager.getImageAnnotations(indx)
             wallimg, bitimg = detect_walls(path, show_histogram= False)
-            inferences_data = np.append(inferences_data, visualize_graph(wallimg, anns, colors, showImg=False, showGraph=False))
+            occurrences, training = visualize_graph(wallimg, anns, colors, categories, path, showImg=False, showGraph=False)
+            inferences_data = np.append(inferences_data, occurrences)
+            training_data.update(training)
         #Build histograms of object occurrences
         hists = {}
         combinations = [(x,y) for x in categories for y in categories]
@@ -34,12 +38,20 @@ def __main__():
             hists.update({x : []})
         for x in inferences_data:
             hists[(x['node1'], x['node2'])].append(x['distance'])
+            hists[(x['node2'], x['node1'])].append(x['distance'])
         #Save the results in a text file
-        with open("output.pickle", "wb") as file:
+        with open("hist.pickle", "wb") as file:
             pickle.dump(hists, file)
-    
-    for cat in categories:
-        util.show_obj_hist(categories, cat)
+            file.close()
+        with open("training_data.pickle", "wb") as file:
+            pickle.dump(training_data, file)
+            file.close()
+    else:
+        tree_manager.sink_tree()
+        tree_manager.table_tree()
+        tree_manager.full_tree(categories)
+        for cat in categories:
+            util.show_obj_hist(categories, cat)
 
 
 if __name__ == __main__():
