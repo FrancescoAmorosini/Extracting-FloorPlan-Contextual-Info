@@ -24,7 +24,8 @@ def create_decision_tree(x, y):
     plt.legend()
     plt.show()
     #Return the best tree
-    best_clf = tree.DecisionTreeClassifier(criterion = 'entropy', min_impurity_decrease = param_range[ np.where(y2 == y2.max())] )
+    index = int(np.where(y2 == y2.max())[0][0])
+    best_clf = tree.DecisionTreeClassifier(criterion = 'entropy', min_impurity_decrease = param_range[index + 1] )
     best_clf.fit(x,y)
     return best_clf
     
@@ -43,8 +44,10 @@ def full_tree(categories):
         y.append(obj['my_category'])
         features = []
         for cat, values in obj.items():
-            if cat != 'my_category':
+            if cat != 'my_category' and cat[1] != '_':
                 features = features + [values[0][0], int(values[0][1])]
+            elif cat[1] == '_':
+                    features = features + [values]
         features = [1000 if i==np.inf else i for i in features]
         x.append(features)
     
@@ -75,8 +78,10 @@ def sink_tree():
             y.append(obj['my_category'])
             features = []
             for cat, values in obj.items():
-                if cat != 'my_category':
+                if cat != 'my_category' and cat[1] != '_':
                     features = features + [values[0][0], int(values[0][1])]
+                elif cat[1] == '_':
+                    features = features + [values]
             features = [1000 if i==np.inf else i for i in features]
             x.append(features)
     
@@ -90,37 +95,6 @@ def sink_tree():
 
     graph = pydotplus.graphviz.graph_from_dot_data(dot_data)
     graph.write_png("sink_tree.png")
-
-
-def full_tree(categories):
-
-    plt.close('all')
-    with open("training_data.pickle", "rb") as file:  
-        data = pickle.load(file)
-        file.close()
-    #Create features and labels
-    x = []
-    y = []
-    for index, feature in data.items():
-        obj = data[index]
-        y.append(obj['my_category'])
-        features = []
-        for cat, values in obj.items():
-            if cat != 'my_category':
-                features = features + [values[0][0], int(values[0][1])]
-        features = [1000 if i==np.inf else i for i in features]
-        x.append(features)
-    
-    clf = create_decision_tree(x, y)
-    tree.export_graphviz(clf, out_file= 'dot_data.dot',class_names=categories,
-    filled=False, rounded=True, special_characters=True, leaves_parallel=False)
-    
-    with open("dot_data.dot", "rb") as file:
-            dot_data = file.read()
-            file.close()
-
-    graph = pydotplus.graphviz.graph_from_dot_data(dot_data)
-    graph.write_png("tree.png")
 
 def table_tree():
 
@@ -137,13 +111,15 @@ def table_tree():
             y.append(obj['my_category'])
             features = []
             for cat, values in obj.items():
-                if cat != 'my_category':
+                if cat != 'my_category' and cat[1] != '_':
                     features = features + [values[0][0], int(values[0][1])]
+                elif cat[1] == '_':
+                    features = features + [values]
             features = [1000 if i==np.inf else i for i in features]
             x.append(features)
     
     clf = create_decision_tree(x, y)
-    tree.export_graphviz(clf, out_file= 'table_data.dot',class_names= ['table', 'small_table', 'dining_table'],
+    tree.export_graphviz(clf, out_file= 'table_data.dot',class_names= ['dining_table', 'small_table', 'table'],
     filled=False, rounded=True, special_characters=True, leaves_parallel=False)
     
     with open("table_data.dot", "rb") as file:
