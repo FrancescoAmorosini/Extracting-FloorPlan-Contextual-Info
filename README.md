@@ -1,2 +1,2 @@
-# workspace
-tesii
+# Extracting Contextual Information from Objects in Floorplans
+This project aims to develop a process for collecting contextual information from object in floor plans. Objects in the same context are represented as a connected component of a graph. All graphs are put together into a dataset, which can be used to improve the object detection in the former planimetry. Thanks to the dataset created we can also train decision trees in order to subclass certain types of objects.
