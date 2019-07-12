@@ -146,7 +146,7 @@ def get_structures(row_len, col_len):
     np.fill_diagonal(square, 1)
     structures['45deg'] = square
     structures['45deg-flipped'] = np.rot90(square)
-    #30/60 degrees
+    '''#30/60 degrees
     square = np.zeros((5,3))
     square[0,0] = 1
     square[1,1] = 1
@@ -156,6 +156,6 @@ def get_structures(row_len, col_len):
     structures['30deg'] = square
     structures['60deg'] = np.rot90(square, k=1)
     structures['30deg-flipped'] = np.rot90(square, k=2)
-    structures['60deg-flipped'] = np.rot90(square, k=3)
+    structures['60deg-flipped'] = np.rot90(square, k=3)'''
 
     return structures

@@ -49,7 +49,6 @@ def __main__():
     else:
         tree_manager.sink_tree()
         tree_manager.table_tree()
-        tree_manager.full_tree(categories)
         for cat in categories:
             util.show_obj_hist(categories, cat)
 

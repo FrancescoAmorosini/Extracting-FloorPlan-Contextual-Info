@@ -197,6 +197,9 @@ def calculate_center_dist(ann0, ann1):
     return dist
 
 def calculate_actual_dist(ann0, ann1):
+    if ann0 == ann1:
+        return 0
+
     box0 = [ ann0['bbox'][0], ann0['bbox'][1], 
         ann0['bbox'][0] + ann0['bbox'][2], ann0['bbox'][1] + ann0['bbox'][3] ]
     box1 = [ ann1['bbox'][0], ann1['bbox'][1], 
@@ -204,9 +207,6 @@ def calculate_actual_dist(ann0, ann1):
 
     x0 ,y0 = ( np.average([box0[0], box0[2]]), np.average([box0[1], box0[3]]))
     x1 ,y1 = ( np.average([box1[0], box1[2]]), np.average([box1[1], box1[3]]))
-
-    if ann0 == ann1:
-        return 0
     
     #Initialize dist on center axis
     poly0 = np.array(ann0['segmentation'][0], dtype=np.int).reshape((int(len(ann0['segmentation'][0]) / 2), 2))
@@ -216,7 +216,7 @@ def calculate_actual_dist(ann0, ann1):
     mindist = len(axis)
     min0 = [x0,y0]
     min1 = [x1,y1]
-
+    #Find axis-contour intersection points
     prev = poly0[-1]
     for point0 in poly0:
         line = xiaoline(point0[0], point0[1], prev[0], prev[1])
@@ -261,7 +261,7 @@ def calculate_actual_dist(ann0, ann1):
                         min0 = point0
                         min1 = x   
             prev = point1
-    #Find point of poly0 contour to closest point of poly0 contour
+    #Find point of poly1 contour to closest point of poly0 contour
     line = xiaoline(x0, y0, min1[0], min1[1])
     prev = poly0[-1]
     for point0 in poly0:
